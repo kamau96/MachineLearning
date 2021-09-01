@@ -4,34 +4,28 @@ rm(list=ls())
 library(data.table)
 library(Metrics)
 library(caret)
+set.seed(12)
 
 # Read data to be used in building the model
-data <- fread("./SydneyHousePrices.csv")
-train <- data[1:150000,]
-test <- data[150001:199504,]
-train_saleprice <- train$sellPrice
-test_saleprice <- test$sellPrice
+data <- data.table(fread("./SydneyHousePrices.csv"))
+data$suburb <- as.factor(data$suburb)
+data$propType <- as.factor(data$propType)
 
+# Random sampling of the data
+train <- data[sample(.N, 150000)]
+test <- data[sample(.N, 49504)]
+actual_sellPrice <- test$sellPrice
+test <- subset(test, select = -c(sellPrice))
 
-# Changing from categorial to numerical
-dummies <- dummyVars(sellPrice ~ ., data = train)
-train <- predict(dummies, newdata = train)
+# Using significant predictors to build the model
+lm_model <- lm(sellPrice ~ Date+postalCode+bath+car, data = train)
+summary(lm_model)
 
-dummies2 <- dummyVars(sellPrice~., data = test)
-test <- predict(dummies2, newdata = test)
-
-
-train <- data.table(train)
-test <- data.table(test)
-train$sellPrice <- train_saleprice
-
-
-lm_model <- lm(sellPrice ~ ., data = train)
-
-# obtaining the predictions using the linear
-sellPrice<-predict(lm_model, newdata = test)
-submit<-test[,.(Id,SalePrice)]
-submit$SalePrice[which(is.na(submit$SalePrice))]<-mean(submit$SalePrice[which(!is.na(submit$SalePrice))])
+# obtaining the predictions using the linear model
+predicted_sellPrice<-predict(lm_model, newdata = test)
+predicted_sellPrice <- as.numeric(predicted_sellPrice)
+actual_sellPrice <- as.numeric(actual_sellPrice)
+submit<-test[,.(Id, predicted_sellPrice)]
 
 # writing out a submission
 fwrite(submit,"./submit_lm.csv")
